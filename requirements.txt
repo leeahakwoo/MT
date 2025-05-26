@@ -1,0 +1,8 @@
+streamlit
+pandas
+joblib
+shap
+scikit-learn
+matplotlib
+seaborn
+fpdf
