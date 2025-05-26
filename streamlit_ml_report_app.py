@@ -1,10 +1,11 @@
 
 import streamlit as st
 import pandas as pd
-import joblib
 import shap
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
 from fpdf import FPDF
 import os
@@ -12,37 +13,39 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-st.title("🧠 ML 모델 성능 평가 + 설명가능성 + 보고서 생성")
+st.title("🧠 CSV 기반 ML 모델 자동 학습 + 평가 + 보고서")
 
-uploaded_model = st.file_uploader("모델 업로드 (.pkl)", type=["pkl"])
-uploaded_data = st.file_uploader("테스트 데이터 (.csv)", type=["csv"])
+uploaded_data = st.file_uploader("테스트 데이터 업로드 (.csv)", type=["csv"])
 
-if uploaded_model and uploaded_data:
-    model = joblib.load(uploaded_model)
+if uploaded_data:
     data = pd.read_csv(uploaded_data)
-
     X = data.iloc[:, :-1]
-    y_true = data.iloc[:, -1]
-    y_pred = model.predict(X)
+    y = data.iloc[:, -1]
 
-    # 성능 평가
+    # 데이터 분할 및 모델 학습
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = RandomForestClassifier(random_state=42)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    # 1. 성능 평가
     st.subheader("📊 성능 지표")
-    report = classification_report(y_true, y_pred, output_dict=True)
+    report = classification_report(y_test, y_pred, output_dict=True)
     report_df = pd.DataFrame(report).transpose()
     st.dataframe(report_df.style.format(precision=3))
 
-    # Confusion Matrix
+    # 2. Confusion Matrix
     st.subheader("📌 Confusion Matrix")
-    cm = confusion_matrix(y_true, y_pred)
+    cm = confusion_matrix(y_test, y_pred)
     fig_cm, ax_cm = plt.subplots()
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm)
     st.pyplot(fig_cm)
 
-    # ROC Curve
+    # 3. ROC Curve (이진 분류인 경우)
     try:
         st.subheader("📈 ROC Curve")
-        y_score = model.predict_proba(X)[:, 1]
-        fpr, tpr, _ = roc_curve(y_true, y_score)
+        y_score = model.predict_proba(X_test)[:, 1]
+        fpr, tpr, _ = roc_curve(y_test, y_score)
         roc_auc = auc(fpr, tpr)
 
         fig_roc, ax_roc = plt.subplots()
@@ -55,11 +58,11 @@ if uploaded_model and uploaded_data:
     except:
         st.warning("ROC Curve는 이진 분류 모델에서만 지원됩니다.")
 
-    # SHAP 설명가능성
+    # 4. SHAP 설명가능성
     st.subheader("🔍 SHAP 기반 설명가능성 분석")
     with st.spinner("SHAP 계산 중..."):
-        explainer = shap.Explainer(model, X)
-        shap_values = explainer(X)
+        explainer = shap.Explainer(model, X_train)
+        shap_values = explainer(X_test)
 
     st.markdown("**📌 피처 중요도 (Summary Plot)**")
     fig_shap = shap.plots.bar(shap_values, show=False)
@@ -67,10 +70,10 @@ if uploaded_model and uploaded_data:
 
     st.markdown("**🔬 개별 예측 설명 (Force Plot)**")
     shap.initjs()
-    force_plot_html = shap.plots.force(explainer.expected_value, shap_values[0], X.iloc[0], matplotlib=False)
+    force_plot_html = shap.plots.force(explainer.expected_value, shap_values[0], X_test.iloc[0], matplotlib=False)
     st.components.v1.html(shap.getjs() + force_plot_html.html(), height=300)
 
-    # PDF 보고서 생성
+    # 5. PDF 보고서 생성
     if st.button("📄 PDF 보고서 생성"):
         cm_img_path = "conf_matrix.png"
         fig_cm.savefig(cm_img_path)
