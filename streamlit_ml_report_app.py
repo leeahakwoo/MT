@@ -14,7 +14,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-st.title("🧠 지도학습 + 비지도학습 통합 ML 리포트 앱")
+st.title("🧠 지도학습 + 비지도학습 통합 ML 리포트 앱 (SHAP 오류 수정 버전)")
 
 uploaded_data = st.file_uploader("데이터 업로드 (.csv)", type=["csv"])
 
@@ -30,6 +30,9 @@ if uploaded_data:
         y = df.iloc[:, -1]
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train = pd.DataFrame(X_train, columns=feature_names)
+        X_test = pd.DataFrame(X_test, columns=feature_names)
+
         model = RandomForestClassifier(random_state=42)
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
@@ -47,7 +50,7 @@ if uploaded_data:
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm)
         st.pyplot(fig_cm)
 
-        # 3. ROC Curve (이진 분류)
+        # 3. ROC Curve
         try:
             st.subheader("📈 ROC Curve")
             y_score = model.predict_proba(X_test)[:, 1]
@@ -109,4 +112,3 @@ if uploaded_data:
             st.pyplot(fig_cluster)
         except:
             st.warning("시각화를 위해 PCA 변환을 시도했으나 실패했습니다.")
-
