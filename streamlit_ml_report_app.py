@@ -13,14 +13,15 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-st.title("🧠 CSV 기반 ML 모델 자동 학습 + 평가 + 보고서")
+st.title("🧠 CSV 기반 ML 모델 자동 학습 + 평가 + 설명가능성 + 보고서")
 
 uploaded_data = st.file_uploader("테스트 데이터 업로드 (.csv)", type=["csv"])
 
 if uploaded_data:
-    data = pd.read_csv(uploaded_data)
-    X = data.iloc[:, :-1]
-    y = data.iloc[:, -1]
+    df = pd.read_csv(uploaded_data)
+    feature_names = df.columns[:-1]
+    X = pd.DataFrame(df.iloc[:, :-1].values, columns=feature_names)
+    y = df.iloc[:, -1]
 
     # 데이터 분할 및 모델 학습
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
