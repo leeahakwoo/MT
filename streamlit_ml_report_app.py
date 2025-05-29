@@ -24,7 +24,7 @@ def generate_formula_image_fixed():
     plt.close()
     return formula_path
 
-st.title("🧠 Model Evaluation with Formula Explanation")
+st.title("🧠 Model Evaluation with Tabular Summary")
 
 uploaded_model = st.file_uploader("Upload trained model (.pkl or .joblib)", type=["pkl", "joblib"])
 uploaded_test_data = st.file_uploader("Upload test data (.csv)", type=["csv"])
@@ -65,28 +65,40 @@ def summarize_test_process(y_test, y_pred, TP, FP, FN):
     return lines
 
 def detailed_metric_table(TP, FP, FN):
-    lines = []
     try:
         precision = TP / (TP + FP)
-        lines.append(f"Precision = TP / (TP + FP) = {TP} / ({TP + FP}) = {precision:.3f}")
-    except ZeroDivisionError:
-        precision = 0
-        lines.append("Precision = TP / (TP + FP) = undefined (division by zero) → treated as 0.0")
-    try:
         recall = TP / (TP + FN)
-        lines.append(f"Recall = TP / (TP + FN) = {TP} / ({TP + FN}) = {recall:.3f}")
-    except ZeroDivisionError:
-        recall = 0
-        lines.append("Recall = TP / (TP + FN) = undefined (division by zero) → treated as 0.0")
-    try:
         f1 = 2 * precision * recall / (precision + recall)
-        lines.append(f"F1 Score = 2 * P * R / (P + R) = 2 * {precision:.3f} * {recall:.3f} / ({precision:.3f} + {recall:.3f}) = {f1:.3f}")
     except ZeroDivisionError:
-        f1 = 0
-        lines.append("F1 Score = undefined (division by zero) → treated as 0.0")
-    return lines, precision, recall, f1
+        precision = recall = f1 = 0
+    table_data = {
+        "항목": ["Precision", "Recall", "F1 Score"],
+        "값": [round(precision, 3), round(recall, 3), round(f1, 3)],
+        "계산식": [
+            f"{TP} / ({TP} + {FP})",
+            f"{TP} / ({TP} + {FN})",
+            f"2 * {round(precision, 3)} * {round(recall, 3)} / ({round(precision, 3)} + {round(recall, 3)})"
+        ]
+    }
+    return pd.DataFrame(table_data), precision, recall, f1
 
-def generate_pdf(metrics_lines, table_lines, process_lines, explanations, chart_paths, formula_image):
+def generate_pdf_table(df, pdf):
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "Metric Summary Table:", ln=True)
+    pdf.set_font("Arial", "", 11)
+    col_width = pdf.w / 3.5
+    row_height = 8
+    pdf.cell(col_width, row_height, "항목", border=1)
+    pdf.cell(col_width, row_height, "값", border=1)
+    pdf.cell(col_width*2, row_height, "계산식", border=1)
+    pdf.ln(row_height)
+    for index, row in df.iterrows():
+        pdf.cell(col_width, row_height, str(row["항목"]), border=1)
+        pdf.cell(col_width, row_height, str(row["값"]), border=1)
+        pdf.cell(col_width*2, row_height, str(row["계산식"]), border=1)
+        pdf.ln(row_height)
+
+def generate_pdf(metrics_df, process_lines, explanations, chart_paths, formula_image):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
@@ -101,18 +113,7 @@ def generate_pdf(metrics_lines, table_lines, process_lines, explanations, chart_
     for line in process_lines:
         pdf.multi_cell(0, 8, line)
 
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Metrics Calculation:", ln=True)
-    pdf.set_font("Arial", "", 11)
-    for line in metrics_lines:
-        pdf.multi_cell(0, 8, line)
-
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Confusion Matrix Breakdown:", ln=True)
-    for line in table_lines:
-        pdf.multi_cell(0, 8, line)
+    generate_pdf_table(metrics_df, pdf)
 
     pdf.ln(5)
     pdf.set_font("Arial", "B", 12)
@@ -150,18 +151,11 @@ if uploaded_model and uploaded_test_data:
             FN = cm[1][0]
             TN = cm[0][0]
 
-            table_lines = [
-                f"TP (True Positives): {TP}",
-                f"FP (False Positives): {FP}",
-                f"FN (False Negatives): {FN}",
-                f"TN (True Negatives): {TN}"
-            ]
-
             process_lines = summarize_test_process(y_test, y_pred, TP, FP, FN)
             for line in process_lines:
                 st.markdown(f"- {line}")
 
-            metric_lines, precision, recall, f1 = detailed_metric_table(TP, FP, FN)
+            metrics_df, precision, recall, f1 = detailed_metric_table(TP, FP, FN)
 
             explanations = [
                 f"- A precision of {precision:.2f} indicates that {precision*100:.1f}% of predicted positives were correct.",
@@ -169,9 +163,8 @@ if uploaded_model and uploaded_test_data:
                 f"- F1 score combines precision and recall. If either is 0, F1 will also be 0.",
             ]
 
-            st.subheader("📘 Detailed Metric Explanation")
-            for line in metric_lines + table_lines + explanations:
-                st.markdown(f"- {line}")
+            st.subheader("📊 Metric Table")
+            st.dataframe(metrics_df)
 
             chart_paths = []
             cm_path = tempfile.mktemp(suffix=".png")
@@ -196,8 +189,7 @@ if uploaded_model and uploaded_test_data:
 
             if st.button("📄 Generate Detailed PDF Report"):
                 pdf_path = generate_pdf(
-                    metrics_lines=metric_lines,
-                    table_lines=table_lines,
+                    metrics_df=metrics_df,
                     process_lines=process_lines,
                     explanations=explanations,
                     chart_paths=chart_paths,
