@@ -1,51 +1,24 @@
+
 import streamlit as st
 import pandas as pd
-import numpy as np
+import joblib
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import (
-    precision_score, recall_score, f1_score,
-    confusion_matrix, roc_curve, auc
-)
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
+import seaborn as sns
+from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
 from fpdf import FPDF
 import tempfile
 import os
 
+st.title("🧠 저장된 모델 파일 + 테스트 데이터 평가 및 보고서 생성기")
 
-def is_supervised(data):
-    return 'target' in data.columns
-
-
-def plot_confusion_matrix(y_true, y_pred):
-    cm = confusion_matrix(y_true, y_pred)
-    fig, ax = plt.subplots()
-    ax.imshow(cm, cmap='Blues')
-    ax.set_title("Confusion Matrix")
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("Actual")
-    return fig
-
-
-def plot_roc(y_true, y_score):
-    fpr, tpr, _ = roc_curve(y_true, y_score)
-    roc_auc = auc(fpr, tpr)
-    fig, ax = plt.subplots()
-    ax.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
-    ax.plot([0, 1], [0, 1], 'k--')
-    ax.set_title("ROC Curve")
-    ax.set_xlabel("False Positive Rate")
-    ax.set_ylabel("True Positive Rate")
-    ax.legend(loc="lower right")
-    return fig, roc_auc
-
+uploaded_model = st.file_uploader("모델 파일 업로드 (.pkl or .joblib)", type=["pkl", "joblib"])
+uploaded_test_data = st.file_uploader("테스트 데이터 업로드 (.csv)", type=["csv"])
 
 def generate_pdf_report(metrics, explanations, charts):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt="모델 품질 평가 보고서", ln=True, align='C')
+    pdf.cell(200, 10, txt="모델 평가 자동 보고서", ln=True, align='C')
 
     for key, value in metrics.items():
         pdf.cell(200, 10, txt=f"{key}: {value:.3f}", ln=True)
@@ -61,62 +34,81 @@ def generate_pdf_report(metrics, explanations, charts):
     pdf.output(tmp_path)
     return tmp_path
 
+if uploaded_model and uploaded_test_data:
+    try:
+        model = joblib.load(uploaded_model)
+        df = pd.read_csv(uploaded_test_data)
 
-st.title("AI/ML 품질 자동 평가 리포트 앱")
+        if 'target' not in df.columns:
+            st.error("❗ 'target' 컬럼이 포함되어 있어야 평가가 가능합니다.")
+        else:
+            X_test = df.drop(columns=['target'])
+            y_test = df['target']
+            y_pred = model.predict(X_test)
 
-uploaded_file = st.file_uploader("CSV 데이터 파일을 업로드하세요", type=["csv"])
+            # 성능지표
+            report = classification_report(y_test, y_pred, output_dict=True)
+            precision = report['weighted avg']['precision']
+            recall = report['weighted avg']['recall']
+            f1 = report['weighted avg']['f1-score']
+            st.dataframe(pd.DataFrame(report).transpose().round(3))
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    st.write("데이터 미리보기", df.head())
+            # Confusion Matrix
+            cm = confusion_matrix(y_test, y_pred)
+            fig_cm, ax = plt.subplots()
+            sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
+            st.pyplot(fig_cm)
 
-    if is_supervised(df):
-        st.success("지도학습으로 분류되었습니다.")
-        X = df.drop(columns=['target'])
-        y = df['target']
+            cm_path = tempfile.mktemp(suffix=".png")
+            fig_cm.savefig(cm_path)
+            plt.close(fig_cm)
 
-        if y.dtype == 'object':
-            y = LabelEncoder().fit_transform(y)
+            # ROC Curve
+            roc_auc = None
+            try:
+                y_score = model.predict_proba(X_test)[:, 1]
+                fpr, tpr, _ = roc_curve(y_test, y_score)
+                roc_auc = auc(fpr, tpr)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-        model = RandomForestClassifier(random_state=42)
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        y_score = model.predict_proba(X_test)[:, 1]
+                fig_roc, ax = plt.subplots()
+                ax.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
+                ax.plot([0, 1], [0, 1], 'k--')
+                ax.set_xlabel("False Positive Rate")
+                ax.set_ylabel("True Positive Rate")
+                ax.set_title("ROC Curve")
+                ax.legend()
+                st.pyplot(fig_roc)
 
-        precision = precision_score(y_test, y_pred)
-        recall = recall_score(y_test, y_pred)
-        f1 = f1_score(y_test, y_pred)
+                roc_path = tempfile.mktemp(suffix=".png")
+                fig_roc.savefig(roc_path)
+                plt.close(fig_roc)
 
-        st.metric("정밀도 (Precision)", f"{precision:.3f}")
-        st.metric("재현율 (Recall)", f"{recall:.3f}")
-        st.metric("F1 점수", f"{f1:.3f}")
+            except:
+                roc_path = None
+                st.warning("ROC Curve는 이진 분류에서만 지원됩니다.")
 
-        cm_fig = plot_confusion_matrix(y_test, y_pred)
-        st.pyplot(cm_fig)
+            # 해석 생성
+            explanations = [
+                f"정밀도는 {precision:.2f}로, 예측 Positive 중 실제 정답 비율을 나타냅니다.",
+                f"재현율은 {recall:.2f}로, 실제 Positive 중 예측 성공 비율을 나타냅니다.",
+                f"F1 점수는 정밀도와 재현율의 조화 평균으로, 현재 {f1:.2f}입니다.",
+            ]
+            if roc_auc:
+                explanations.append(f"AUC는 {roc_auc:.2f}로, 분류 성능이 매우 {'우수' if roc_auc >= 0.9 else '양호' if roc_auc >= 0.8 else '보통'}한 수준입니다.")
 
-        roc_fig, roc_auc = plot_roc(y_test, y_score)
-        st.pyplot(roc_fig)
+            # PDF 생성
+            if st.button("📄 PDF 보고서 생성"):
+                chart_list = [cm_path]
+                if roc_path:
+                    chart_list.append(roc_path)
 
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as cm_tmp:
-            cm_fig.savefig(cm_tmp.name)
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as roc_tmp:
-            roc_fig.savefig(roc_tmp.name)
+                pdf_path = generate_pdf_report(
+                    metrics={"정밀도": precision, "재현율": recall, "F1 점수": f1, "AUC": roc_auc or 0.0},
+                    explanations=explanations,
+                    charts=chart_list
+                )
+                with open(pdf_path, "rb") as f:
+                    st.download_button("📥 PDF 다운로드", data=f, file_name="model_evaluation_report.pdf")
 
-        explanations = [
-            f"정밀도는 {precision:.2f}로, 모델이 예측한 Positive 중 실제로 맞은 비율을 의미합니다.",
-            f"재현율은 {recall:.2f}로, 실제 Positive 중에서 모델이 맞춘 비율입니다.",
-            f"F1 점수는 정밀도와 재현율의 조화 평균으로 {f1:.2f}입니다.",
-            f"AUC는 {roc_auc:.2f}로, 임계값 변화에 따른 분류 성능을 평가합니다."
-        ]
-
-        if st.button("PDF 리포트 생성"):
-            report_path = generate_pdf_report(
-                metrics={"정밀도": precision, "재현율": recall, "F1 점수": f1, "AUC": roc_auc},
-                explanations=explanations,
-                charts=[cm_tmp.name, roc_tmp.name]
-            )
-            with open(report_path, "rb") as f:
-                st.download_button("PDF 다운로드", data=f, file_name="model_report.pdf")
-    else:
-        st.warning("비지도학습 데이터로 분류되었습니다. 분석 모듈은 추후 지원 예정입니다.")
+    except Exception as e:
+        st.error(f"모델 평가 중 오류 발생: {e}")
