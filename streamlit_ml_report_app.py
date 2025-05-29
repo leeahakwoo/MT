@@ -4,10 +4,12 @@ import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix, roc_curve, auc
+from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve
+from sklearn.calibration import calibration_curve
 from fpdf import FPDF
 import tempfile
 import os
+import numpy as np
 
 class PDF(FPDF):
     def header(self):
@@ -24,6 +26,12 @@ st.title("🧠 Model Evaluation App")
 
 uploaded_model = st.file_uploader("Upload trained model (.pkl, .joblib)", type=["pkl", "joblib"])
 uploaded_test_data = st.file_uploader("Upload test dataset (.csv)", type=["csv"])
+
+def save_plot(fig, name="plot"):
+    path = tempfile.mktemp(suffix=".png", prefix=name)
+    fig.savefig(path, bbox_inches="tight", dpi=200)
+    plt.close(fig)
+    return path
 
 def plot_confusion_matrix(y_true, y_pred):
     cm = confusion_matrix(y_true, y_pred)
@@ -42,7 +50,33 @@ def plot_roc(y_true, y_score):
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
     ax.legend(loc="lower right")
-    return fig, roc_auc
+    return fig
+
+def plot_precision_recall(y_true, y_score):
+    precision, recall, _ = precision_recall_curve(y_true, y_score)
+    fig, ax = plt.subplots()
+    ax.plot(recall, precision)
+    ax.set_title("Precision-Recall Curve")
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    return fig
+
+def plot_probability_histogram(y_score):
+    fig, ax = plt.subplots()
+    ax.hist(y_score, bins=20, color="skyblue", edgecolor="black")
+    ax.set_title("Prediction Probability Histogram")
+    ax.set_xlabel("Predicted Probability")
+    ax.set_ylabel("Frequency")
+    return fig
+
+def plot_feature_importance(model, feature_names):
+    if hasattr(model, "feature_importances_"):
+        importances = model.feature_importances_
+        fig, ax = plt.subplots()
+        sns.barplot(x=importances, y=feature_names, ax=ax)
+        ax.set_title("Feature Importance")
+        return fig
+    return None
 
 def draw_formula_image():
     fig, ax = plt.subplots(figsize=(10, 2))
@@ -53,36 +87,31 @@ def draw_formula_image():
         r"F1 = 2 \cdot \frac{\mathrm{Precision} \cdot \mathrm{Recall}}{\mathrm{Precision} + \mathrm{Recall}}$"
     )
     ax.text(0.5, 0.5, formula, fontsize=16, ha="center", va="center")
-    img_path = "formula_fpdf2.png"
+    img_path = "formula_viz.png"
     plt.savefig(img_path, bbox_inches="tight", dpi=200)
     plt.close()
     return img_path
 
-def generate_pdf(precision, recall, f1, TP, FP, FN, formula_img_path, explanations, confusion_text):
+def generate_pdf(metrics, explanations, confusion_text, chart_paths):
     pdf = PDF()
     pdf.add_page()
     pdf.set_font("Arial", "", 12)
 
-    pdf.cell(0, 10, f"Precision: {precision:.2f}", ln=True)
-    pdf.cell(0, 10, f"Recall: {recall:.2f}", ln=True)
-    pdf.cell(0, 10, f"F1 Score: {f1:.2f}", ln=True)
+    for key, val in metrics.items():
+        pdf.cell(0, 10, f"{key}: {val:.2f}", ln=True)
+
     pdf.ln(5)
-    pdf.multi_cell(0, 8, f"[Details] TP: {TP}, FP: {FP}, FN: {FN}")
+    pdf.multi_cell(0, 8, confusion_text)
     for ex in explanations:
         pdf.multi_cell(0, 8, ex)
 
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Confusion Matrix Interpretation", ln=True)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 8, confusion_text)
+    for path in chart_paths:
+        pdf.add_page()
+        pdf.image(path, w=180)
 
-    if os.path.exists(formula_img_path):
-        pdf.image(formula_img_path, w=180)
-
-    path = tempfile.mktemp(suffix=".pdf")
-    pdf.output(path)
-    return path
+    report_path = tempfile.mktemp(suffix=".pdf")
+    pdf.output(report_path)
+    return report_path
 
 if uploaded_model and uploaded_test_data:
     try:
@@ -95,6 +124,7 @@ if uploaded_model and uploaded_test_data:
             X_test = df.drop(columns=["target"])
             y_test = df["target"]
             y_pred = model.predict(X_test)
+            y_score = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else np.zeros_like(y_pred)
 
             TP = ((y_pred == 1) & (y_test == 1)).sum()
             FP = ((y_pred == 1) & (y_test == 0)).sum()
@@ -105,43 +135,55 @@ if uploaded_model and uploaded_test_data:
             recall = TP / (TP + FN) if TP + FN > 0 else 0.0
             f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
-            st.subheader("📊 Evaluation Metrics")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Precision", f"{precision:.2f}")
-            col2.metric("Recall", f"{recall:.2f}")
-            col3.metric("F1 Score", f"{f1:.2f}")
+            metrics = {
+                "Precision": precision,
+                "Recall": recall,
+                "F1 Score": f1
+            }
 
-            explanations = [
-                f"- Precision = TP / (TP + FP) = {TP} / ({TP} + {FP}) = {precision:.2f}",
-                f"- Recall = TP / (TP + FN) = {TP} / ({TP} + {FN}) = {recall:.2f}",
-                f"- F1 Score = 2 * P * R / (P + R) = {f1:.2f}",
-            ]
+            st.subheader("📊 Metrics")
+            for k, v in metrics.items():
+                st.metric(k, f"{v:.2f}")
 
             st.subheader("📘 Explanation")
+            explanations = [
+                f"Precision = TP / (TP + FP) = {TP} / ({TP} + {FP}) = {precision:.2f}",
+                f"Recall = TP / (TP + FN) = {TP} / ({TP} + {FN}) = {recall:.2f}",
+                f"F1 Score = 2 * P * R / (P + R) = {f1:.2f}"
+            ]
             for ex in explanations:
-                st.markdown(f"✅ {ex}")
+                st.markdown(f"- {ex}")
 
-            st.subheader("🧮 Confusion Matrix")
-            fig, cm = plot_confusion_matrix(y_test, y_pred)
-            st.pyplot(fig)
+            chart_paths = []
 
-            confusion_text = f"TP: {TP} (True Positive), FP: {FP} (False Positive), FN: {FN} (False Negative), TN: {TN} (True Negative)"
-            st.info(confusion_text)
+            fig_cm, _ = plot_confusion_matrix(y_test, y_pred)
+            st.pyplot(fig_cm)
+            chart_paths.append(save_plot(fig_cm, "confusion"))
 
-            try:
-                y_prob = model.predict_proba(X_test)[:, 1]
-                st.subheader("📈 ROC Curve")
-                fig_roc, _ = plot_roc(y_test, y_prob)
-                st.pyplot(fig_roc)
-            except:
-                st.warning("predict_proba is required for ROC Curve.")
+            fig_roc = plot_roc(y_test, y_score)
+            st.pyplot(fig_roc)
+            chart_paths.append(save_plot(fig_roc, "roc"))
 
-            formula_img = draw_formula_image()
+            fig_pr = plot_precision_recall(y_test, y_score)
+            st.pyplot(fig_pr)
+            chart_paths.append(save_plot(fig_pr, "pr"))
 
-            if st.button("📄 Generate PDF Report"):
-                pdf_path = generate_pdf(precision, recall, f1, TP, FP, FN, formula_img, explanations, confusion_text)
+            fig_hist = plot_probability_histogram(y_score)
+            st.pyplot(fig_hist)
+            chart_paths.append(save_plot(fig_hist, "hist"))
+
+            fig_importance = plot_feature_importance(model, X_test.columns)
+            if fig_importance:
+                st.pyplot(fig_importance)
+                chart_paths.append(save_plot(fig_importance, "importance"))
+
+            confusion_text = f"TP: {TP}, FP: {FP}, FN: {FN}, TN: {TN}"
+            st.markdown(f"**Confusion Matrix Detail:** {confusion_text}")
+
+            if st.button("📄 Generate Full PDF Report"):
+                pdf_path = generate_pdf(metrics, explanations, confusion_text, chart_paths)
                 with open(pdf_path, "rb") as f:
-                    st.download_button("📥 Download Report", f, file_name="model_eval_report_en.pdf")
+                    st.download_button("📥 Download PDF", f, file_name="model_eval_extended.pdf")
 
     except Exception as e:
-        st.error(f"⚠️ Error occurred: {e}")
+        st.error(f"❌ Error occurred: {e}")
