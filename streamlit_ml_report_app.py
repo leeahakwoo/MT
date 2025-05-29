@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
-import seab as sns
+import seaborn as sns
 from sklearn.metrics import confusion_matrix, roc_curve, auc
 from fpdf import FPDF
 import tempfile
