@@ -3,13 +3,12 @@ import streamlit as st
 import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
+import seab as sns
+from sklearn.metrics import confusion_matrix, roc_curve, auc
 from fpdf import FPDF
 import tempfile
 import os
 
-# Generate formula image
 def generate_formula_image_fixed():
     fig, ax = plt.subplots(figsize=(10, 2))
     ax.axis("off")
@@ -24,7 +23,7 @@ def generate_formula_image_fixed():
     plt.close()
     return formula_path
 
-st.title("🧠 Model Evaluation with Tabular Summary")
+st.title("🧠 Model Evaluation with All Upgrades (1-4)")
 
 uploaded_model = st.file_uploader("Upload trained model (.pkl or .joblib)", type=["pkl", "joblib"])
 uploaded_test_data = st.file_uploader("Upload test data (.csv)", type=["csv"])
@@ -47,22 +46,6 @@ def plot_roc(y_true, y_score):
     ax.set_ylabel("True Positive Rate")
     ax.legend(loc="lower right")
     return fig, roc_auc
-
-def summarize_test_process(y_test, y_pred, TP, FP, FN):
-    total_cases = len(y_test)
-    pred_pos = sum(y_pred)
-    actual_pos = sum(y_test)
-    lines = [
-        f"Total test cases: {total_cases}",
-        f"Predicted Positives: {pred_pos}",
-        f"Actual Positives: {actual_pos}",
-        f"True Positives (TP): {TP}",
-        f"False Positives (FP): {FP}",
-        f"False Negatives (FN): {FN}",
-        f"Precision = TP / (TP + FP) = {TP} / ({TP + FP})",
-        f"Recall = TP / (TP + FN) = {TP} / ({TP + FN})"
-    ]
-    return lines
 
 def detailed_metric_table(TP, FP, FN):
     try:
@@ -98,7 +81,7 @@ def generate_pdf_table(df, pdf):
         pdf.cell(col_width*2, row_height, str(row["계산식"]), border=1)
         pdf.ln(row_height)
 
-def generate_pdf(metrics_df, process_lines, explanations, chart_paths, formula_image):
+def generate_pdf(metrics_df, process_lines, explanations, chart_paths, formula_image, viz_explanations):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
@@ -122,9 +105,12 @@ def generate_pdf(metrics_df, process_lines, explanations, chart_paths, formula_i
     for explanation in explanations:
         pdf.multi_cell(0, 8, explanation)
 
-    for path in chart_paths:
+    for path, desc in chart_paths:
         pdf.add_page()
         pdf.image(path, w=180)
+        pdf.ln(2)
+        pdf.set_font("Arial", "I", 10)
+        pdf.multi_cell(0, 8, desc)
 
     temp_path = tempfile.mktemp(suffix=".pdf")
     pdf.output(temp_path)
@@ -145,22 +131,22 @@ if uploaded_model and uploaded_test_data:
             fig_cm, cm = plot_confusion_matrix(y_test, y_pred)
             st.subheader("📌 Confusion Matrix")
             st.pyplot(fig_cm)
+            st.markdown("*🔍 대각선 값이 높을수록 올바른 예측 비율이 높습니다. FP와 FN은 오예측입니다.*")
 
             TP = cm[1][1]
             FP = cm[0][1]
             FN = cm[1][0]
             TN = cm[0][0]
 
-            process_lines = summarize_test_process(y_test, y_pred, TP, FP, FN)
-            for line in process_lines:
-                st.markdown(f"- {line}")
-
+            process_lines = [
+                f"TP = {TP}, FP = {FP}, FN = {FN}, TN = {TN}"
+            ]
             metrics_df, precision, recall, f1 = detailed_metric_table(TP, FP, FN)
 
             explanations = [
-                f"- A precision of {precision:.2f} indicates that {precision*100:.1f}% of predicted positives were correct.",
-                f"- A recall of {recall:.2f} indicates the model captured {recall*100:.1f}% of actual positives.",
-                f"- F1 score combines precision and recall. If either is 0, F1 will also be 0.",
+                f"Precision: {precision:.2f} → 예측이 맞을 확률",
+                f"Recall: {recall:.2f} → 실제 정답을 놓치지 않을 확률",
+                f"F1 Score: {f1:.2f} → Precision과 Recall의 조화 평균"
             ]
 
             st.subheader("📊 Metric Table")
@@ -169,23 +155,36 @@ if uploaded_model and uploaded_test_data:
             chart_paths = []
             cm_path = tempfile.mktemp(suffix=".png")
             fig_cm.savefig(cm_path)
-            chart_paths.append(cm_path)
+            chart_paths.append((cm_path, "🔍 Confusion Matrix는 예측 vs 실제를 비교하는 표입니다."))
 
             try:
                 y_score = model.predict_proba(X_test)[:, 1]
                 fig_roc, roc_auc = plot_roc(y_test, y_score)
                 st.subheader("📈 ROC Curve")
                 st.pyplot(fig_roc)
+                st.markdown(f"*🎯 AUC = {roc_auc:.2f}. 높을수록 구분 능력이 좋습니다.*")
                 roc_path = tempfile.mktemp(suffix=".png")
                 fig_roc.savefig(roc_path)
-                chart_paths.append(roc_path)
+                chart_paths.append((roc_path, f"🎯 ROC Curve: AUC = {roc_auc:.2f}. 높은 AUC는 우수한 분류기를 의미합니다."))
                 plt.close(fig_roc)
-            except:
-                roc_auc = 0.0
-                explanations.append("ROC Curve not available.")
+            except Exception as e:
+                chart_paths.append(("", f"[!] ROC Curve 예외 발생: {e}"))
 
             formula_path = generate_formula_image_fixed()
             st.image(formula_path, caption="정밀도, 재현율, F1 수식")
+
+            # Explainability (fallback without SHAP)
+            st.subheader("🧠 예측 설명 대안")
+            if hasattr(model, "feature_importances_"):
+                importances = model.feature_importances_
+                feat_df = pd.DataFrame({
+                    "Feature": X_test.columns,
+                    "Importance": importances
+                }).sort_values(by="Importance", ascending=False)
+                st.bar_chart(feat_df.set_index("Feature"))
+                st.markdown("*이 모델은 SHAP 없이 feature_importances_로 예측 근거를 제공합니다.*")
+            else:
+                st.markdown("이 모델은 feature importance 정보를 제공하지 않습니다.")
 
             if st.button("📄 Generate Detailed PDF Report"):
                 pdf_path = generate_pdf(
@@ -193,10 +192,11 @@ if uploaded_model and uploaded_test_data:
                     process_lines=process_lines,
                     explanations=explanations,
                     chart_paths=chart_paths,
-                    formula_image=formula_path
+                    formula_image=formula_path,
+                    viz_explanations=[desc for _, desc in chart_paths if desc]
                 )
                 with open(pdf_path, "rb") as f:
                     st.download_button("📥 Download Report", f, file_name="detailed_evaluation_report.pdf")
 
     except Exception as e:
-        st.error(f"Error during evaluation: {e}")
+        st.error(f"[ERROR] 모델 평가 중 문제가 발생했습니다: {e}")
