@@ -11,19 +11,19 @@ import os
 
 class PDF(FPDF):
     def header(self):
-        self.set_font("Nanum", "", 14)
-        self.cell(0, 10, "모델 성능 평가 보고서", ln=True, align="C")
+        self.set_font("Arial", "", 14)
+        self.cell(0, 10, "Model Evaluation Report", ln=True, align="C")
 
     def footer(self):
         self.set_y(-15)
-        self.set_font("Nanum", "", 10)
+        self.set_font("Arial", "", 10)
         self.cell(0, 10, f"Page {self.page_no()}", align="C")
 
-st.set_page_config(page_title="모델 성능 평가", layout="wide")
-st.title("🧠 모델 성능 평가 (한글 PDF 포함)")
+st.set_page_config(page_title="Model Evaluation", layout="wide")
+st.title("🧠 Model Evaluation App")
 
-uploaded_model = st.file_uploader("1️⃣ 훈련된 모델 업로드 (.pkl, .joblib)", type=["pkl", "joblib"])
-uploaded_test_data = st.file_uploader("2️⃣ 테스트 데이터 업로드 (.csv)", type=["csv"])
+uploaded_model = st.file_uploader("Upload trained model (.pkl, .joblib)", type=["pkl", "joblib"])
+uploaded_test_data = st.file_uploader("Upload test dataset (.csv)", type=["csv"])
 
 def plot_confusion_matrix(y_true, y_pred):
     cm = confusion_matrix(y_true, y_pred)
@@ -61,21 +61,20 @@ def draw_formula_image():
 def generate_pdf(precision, recall, f1, TP, FP, FN, formula_img_path, explanations, confusion_text):
     pdf = PDF()
     pdf.add_page()
-    pdf.add_font("Nanum", "", "NanumGothic.ttf", uni=True)
-    pdf.set_font("Nanum", "", 12)
+    pdf.set_font("Arial", "", 12)
 
-    pdf.cell(0, 10, f"정밀도(Precision): {precision:.2f}", ln=True)
-    pdf.cell(0, 10, f"재현율(Recall): {recall:.2f}", ln=True)
-    pdf.cell(0, 10, f"F1 점수: {f1:.2f}", ln=True)
+    pdf.cell(0, 10, f"Precision: {precision:.2f}", ln=True)
+    pdf.cell(0, 10, f"Recall: {recall:.2f}", ln=True)
+    pdf.cell(0, 10, f"F1 Score: {f1:.2f}", ln=True)
     pdf.ln(5)
-    pdf.multi_cell(0, 8, f"[수치 근거] TP: {TP}, FP: {FP}, FN: {FN}")
+    pdf.multi_cell(0, 8, f"[Details] TP: {TP}, FP: {FP}, FN: {FN}")
     for ex in explanations:
         pdf.multi_cell(0, 8, ex)
 
     pdf.ln(5)
-    pdf.set_font("Nanum", "B", 12)
-    pdf.cell(0, 10, "[Confusion Matrix 해석]", ln=True)
-    pdf.set_font("Nanum", "", 11)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "Confusion Matrix Interpretation", ln=True)
+    pdf.set_font("Arial", "", 11)
     pdf.multi_cell(0, 8, confusion_text)
 
     if os.path.exists(formula_img_path):
@@ -91,7 +90,7 @@ if uploaded_model and uploaded_test_data:
         df = pd.read_csv(uploaded_test_data)
 
         if "target" not in df.columns:
-            st.error("⚠️ 'target' 컬럼이 존재해야 합니다.")
+            st.error("⚠️ 'target' column is required.")
         else:
             X_test = df.drop(columns=["target"])
             y_test = df["target"]
@@ -106,19 +105,19 @@ if uploaded_model and uploaded_test_data:
             recall = TP / (TP + FN) if TP + FN > 0 else 0.0
             f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
-            st.subheader("📊 평가지표")
+            st.subheader("📊 Evaluation Metrics")
             col1, col2, col3 = st.columns(3)
-            col1.metric("정밀도 (Precision)", f"{precision:.2f}")
-            col2.metric("재현율 (Recall)", f"{recall:.2f}")
-            col3.metric("F1 점수", f"{f1:.2f}")
+            col1.metric("Precision", f"{precision:.2f}")
+            col2.metric("Recall", f"{recall:.2f}")
+            col3.metric("F1 Score", f"{f1:.2f}")
 
             explanations = [
-                f"- 정밀도는 TP / (TP + FP) = {TP} / ({TP} + {FP}) = {precision:.2f}",
-                f"- 재현율은 TP / (TP + FN) = {TP} / ({TP} + {FN}) = {recall:.2f}",
-                f"- F1 점수는 2 * P * R / (P + R) = {f1:.2f}",
+                f"- Precision = TP / (TP + FP) = {TP} / ({TP} + {FP}) = {precision:.2f}",
+                f"- Recall = TP / (TP + FN) = {TP} / ({TP} + {FN}) = {recall:.2f}",
+                f"- F1 Score = 2 * P * R / (P + R) = {f1:.2f}",
             ]
 
-            st.subheader("📘 수식 해설")
+            st.subheader("📘 Explanation")
             for ex in explanations:
                 st.markdown(f"✅ {ex}")
 
@@ -126,7 +125,7 @@ if uploaded_model and uploaded_test_data:
             fig, cm = plot_confusion_matrix(y_test, y_pred)
             st.pyplot(fig)
 
-            confusion_text = f"TP: {TP} (정답 1, 예측 1), FP: {FP} (정답 0, 예측 1), FN: {FN} (정답 1, 예측 0), TN: {TN} (정답 0, 예측 0)"
+            confusion_text = f"TP: {TP} (True Positive), FP: {FP} (False Positive), FN: {FN} (False Negative), TN: {TN} (True Negative)"
             st.info(confusion_text)
 
             try:
@@ -135,20 +134,14 @@ if uploaded_model and uploaded_test_data:
                 fig_roc, _ = plot_roc(y_test, y_prob)
                 st.pyplot(fig_roc)
             except:
-                st.warning("ROC Curve 생성을 위해 predict_proba가 필요합니다.")
-
-            # Latex 공식 Streamlit에서도 보여주기
-            st.subheader("📐 수식 보기 (Latex)")
-            st.latex(r"\mathrm{Precision} = rac{TP}{TP + FP}")
-            st.latex(r"\mathrm{Recall} = rac{TP}{TP + FN}")
-            st.latex(r"F1 = 2 \cdot rac{\mathrm{Precision} \cdot \mathrm{Recall}}{\mathrm{Precision} + \mathrm{Recall}}")
+                st.warning("predict_proba is required for ROC Curve.")
 
             formula_img = draw_formula_image()
 
-            if st.button("📄 한글 PDF 보고서 생성"):
+            if st.button("📄 Generate PDF Report"):
                 pdf_path = generate_pdf(precision, recall, f1, TP, FP, FN, formula_img, explanations, confusion_text)
                 with open(pdf_path, "rb") as f:
-                    st.download_button("📥 보고서 다운로드", f, file_name="model_eval_report_korean_v2.pdf")
+                    st.download_button("📥 Download Report", f, file_name="model_eval_report_en.pdf")
 
     except Exception as e:
-        st.error(f"⚠️ 오류 발생: {e}")
+        st.error(f"⚠️ Error occurred: {e}")
