@@ -5,22 +5,15 @@ import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve
-from sklearn.calibration import calibration_curve
 import tempfile
 import os
 import numpy as np
 
-# Streamlit settings
 st.set_page_config(page_title="Model Evaluation with Interpretations", layout="wide")
 st.title("🧠 Model Evaluation with Interpretations")
 
 uploaded_model = st.file_uploader("Upload your trained model (.pkl or .joblib)", type=["pkl", "joblib"])
 uploaded_test_data = st.file_uploader("Upload your test data (.csv with 'target' column)", type="csv")
-
-def save_plot(fig):
-    path = tempfile.mktemp(suffix=".png")
-    fig.savefig(path, bbox_inches="tight")
-    return path
 
 def generate_interpretation(metric_name, value):
     if metric_name == "AUC":
@@ -31,11 +24,11 @@ def generate_interpretation(metric_name, value):
         else:
             return "Poor discrimination capability. Consider improving the model."
     elif metric_name == "Precision":
-        return f"Precision of {value:.2f} indicates that {value*100:.0f}% of predicted positives are true positives."
+        return f"Precision of {value:.2f} means {value*100:.0f}% of positive predictions were correct."
     elif metric_name == "Recall":
-        return f"Recall of {value:.2f} shows the model captures {value*100:.0f}% of actual positives."
+        return f"Recall of {value:.2f} means the model captured {value*100:.0f}% of actual positives."
     elif metric_name == "F1 Score":
-        return "F1 Score balances precision and recall. Closer to 1 is better."
+        return f"F1 Score balances Precision and Recall. A score of {value:.2f} indicates overall accuracy in positive class."
     return "No interpretation available."
 
 if uploaded_model and uploaded_test_data:
@@ -63,8 +56,11 @@ if uploaded_model and uploaded_test_data:
 
         st.subheader("📊 Evaluation Metrics")
         st.metric("Precision", f"{precision:.2f}")
+        st.markdown(f"📝 {generate_interpretation('Precision', precision)}")
         st.metric("Recall", f"{recall:.2f}")
+        st.markdown(f"📝 {generate_interpretation('Recall', recall)}")
         st.metric("F1 Score", f"{f1:.2f}")
+        st.markdown(f"📝 {generate_interpretation('F1 Score', f1)}")
 
         # Confusion Matrix
         st.subheader("🔲 Confusion Matrix")
@@ -72,7 +68,7 @@ if uploaded_model and uploaded_test_data:
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
         ax.set_title("Confusion Matrix")
         st.pyplot(fig_cm)
-        st.markdown("📝 Interpretation: Most errors come from false negatives if FN > FP.")
+        st.markdown("📝 Interpretation: Confusion matrix shows distribution of prediction results.")
 
         # ROC Curve
         st.subheader("📈 ROC Curve")
@@ -97,7 +93,7 @@ if uploaded_model and uploaded_test_data:
         ax.set_xlabel("Recall")
         ax.set_ylabel("Precision")
         st.pyplot(fig_pr)
-        st.markdown(f"📝 Interpretation: Precision decreases as recall increases. Monitor balance.")
+        st.markdown("📝 Interpretation: Shows the tradeoff between precision and recall for different thresholds.")
 
         # Histogram of prediction probabilities
         st.subheader("📊 Prediction Probability Histogram")
@@ -107,7 +103,7 @@ if uploaded_model and uploaded_test_data:
         ax.set_xlabel("Predicted Probability")
         ax.set_ylabel("Frequency")
         st.pyplot(fig_hist)
-        st.markdown("📝 Interpretation: Distribution shows model confidence in predictions.")
+        st.markdown("📝 Interpretation: Distribution of model confidence in predictions.")
 
         # Feature Importance (if available)
         if hasattr(model, "feature_importances_"):
@@ -118,4 +114,4 @@ if uploaded_model and uploaded_test_data:
             ax.set_title("Feature Importances")
             st.pyplot(fig_fi)
             top_feature = X.columns[np.argmax(importances)]
-            st.markdown(f"📝 Interpretation: '{top_feature}' is the most influential feature.")
+            st.markdown(f"📝 Interpretation: Feature '{top_feature}' is the most important in decision-making.")
