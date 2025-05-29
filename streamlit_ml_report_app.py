@@ -1,114 +1,122 @@
-
 import streamlit as st
 import pandas as pd
-import shap
+import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc, silhouette_score
+from sklearn.metrics import (
+    precision_score, recall_score, f1_score,
+    confusion_matrix, roc_curve, auc
+)
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder
 from fpdf import FPDF
+import tempfile
 import os
-import warnings
 
-warnings.filterwarnings("ignore")
 
-st.title("🧠 지도학습 + 비지도학습 통합 ML 리포트 앱 (SHAP 오류 수정 버전)")
+def is_supervised(data):
+    return 'target' in data.columns
 
-uploaded_data = st.file_uploader("데이터 업로드 (.csv)", type=["csv"])
 
-if uploaded_data:
-    df = pd.read_csv(uploaded_data)
+def plot_confusion_matrix(y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+    fig, ax = plt.subplots()
+    ax.imshow(cm, cmap='Blues')
+    ax.set_title("Confusion Matrix")
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+    return fig
 
-    st.subheader("⚙️ 분석 모드 선택")
-    mode = st.radio("분석 모드를 선택하세요:", ["지도학습 (정답 라벨 있음)", "비지도학습 (정답 라벨 없음)"])
 
-    if mode == "지도학습 (정답 라벨 있음)":
-        feature_names = df.columns[:-1]
-        X = pd.DataFrame(df.iloc[:, :-1].values, columns=feature_names)
-        y = df.iloc[:, -1]
+def plot_roc(y_true, y_score):
+    fpr, tpr, _ = roc_curve(y_true, y_score)
+    roc_auc = auc(fpr, tpr)
+    fig, ax = plt.subplots()
+    ax.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
+    ax.plot([0, 1], [0, 1], 'k--')
+    ax.set_title("ROC Curve")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.legend(loc="lower right")
+    return fig, roc_auc
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        X_train = pd.DataFrame(X_train, columns=feature_names)
-        X_test = pd.DataFrame(X_test, columns=feature_names)
 
+def generate_pdf_report(metrics, explanations, charts):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="모델 품질 평가 보고서", ln=True, align='C')
+
+    for key, value in metrics.items():
+        pdf.cell(200, 10, txt=f"{key}: {value:.3f}", ln=True)
+
+    for explanation in explanations:
+        pdf.multi_cell(0, 10, explanation)
+
+    for chart_path in charts:
+        pdf.add_page()
+        pdf.image(chart_path, w=180)
+
+    tmp_path = tempfile.mktemp(suffix=".pdf")
+    pdf.output(tmp_path)
+    return tmp_path
+
+
+st.title("AI/ML 품질 자동 평가 리포트 앱")
+
+uploaded_file = st.file_uploader("CSV 데이터 파일을 업로드하세요", type=["csv"])
+
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    st.write("데이터 미리보기", df.head())
+
+    if is_supervised(df):
+        st.success("지도학습으로 분류되었습니다.")
+        X = df.drop(columns=['target'])
+        y = df['target']
+
+        if y.dtype == 'object':
+            y = LabelEncoder().fit_transform(y)
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
         model = RandomForestClassifier(random_state=42)
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
+        y_score = model.predict_proba(X_test)[:, 1]
 
-        # 1. 성능 평가
-        st.subheader("📊 성능 지표")
-        report = classification_report(y_test, y_pred, output_dict=True)
-        report_df = pd.DataFrame(report).transpose()
-        st.dataframe(report_df.style.format(precision=3))
+        precision = precision_score(y_test, y_pred)
+        recall = recall_score(y_test, y_pred)
+        f1 = f1_score(y_test, y_pred)
 
-        # 2. Confusion Matrix
-        st.subheader("📌 Confusion Matrix")
-        cm = confusion_matrix(y_test, y_pred)
-        fig_cm, ax_cm = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm)
-        st.pyplot(fig_cm)
+        st.metric("정밀도 (Precision)", f"{precision:.3f}")
+        st.metric("재현율 (Recall)", f"{recall:.3f}")
+        st.metric("F1 점수", f"{f1:.3f}")
 
-        # 3. ROC Curve
-        try:
-            st.subheader("📈 ROC Curve")
-            y_score = model.predict_proba(X_test)[:, 1]
-            fpr, tpr, _ = roc_curve(y_test, y_score)
-            roc_auc = auc(fpr, tpr)
+        cm_fig = plot_confusion_matrix(y_test, y_pred)
+        st.pyplot(cm_fig)
 
-            fig_roc, ax_roc = plt.subplots()
-            ax_roc.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc:.2f})")
-            ax_roc.plot([0, 1], [0, 1], 'k--')
-            ax_roc.set_xlabel("False Positive Rate")
-            ax_roc.set_ylabel("True Positive Rate")
-            ax_roc.legend(loc="lower right")
-            st.pyplot(fig_roc)
-        except:
-            st.warning("ROC Curve는 이진 분류 모델에서만 지원됩니다.")
+        roc_fig, roc_auc = plot_roc(y_test, y_score)
+        st.pyplot(roc_fig)
 
-        # 4. SHAP 설명가능성
-        st.subheader("🔍 SHAP 기반 설명가능성 분석")
-        with st.spinner("SHAP 계산 중..."):
-            explainer = shap.Explainer(model, X_train)
-            shap_values = explainer(X_test)
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as cm_tmp:
+            cm_fig.savefig(cm_tmp.name)
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as roc_tmp:
+            roc_fig.savefig(roc_tmp.name)
 
-        st.markdown("**📌 피처 중요도 (Summary Plot)**")
-        fig_shap = shap.plots.bar(shap_values, show=False)
-        st.pyplot(bbox_inches='tight')
+        explanations = [
+            f"정밀도는 {precision:.2f}로, 모델이 예측한 Positive 중 실제로 맞은 비율을 의미합니다.",
+            f"재현율은 {recall:.2f}로, 실제 Positive 중에서 모델이 맞춘 비율입니다.",
+            f"F1 점수는 정밀도와 재현율의 조화 평균으로 {f1:.2f}입니다.",
+            f"AUC는 {roc_auc:.2f}로, 임계값 변화에 따른 분류 성능을 평가합니다."
+        ]
 
-        st.markdown("**🔬 개별 예측 설명 (Force Plot)**")
-        shap.initjs()
-        force_plot_html = shap.plots.force(explainer.expected_value, shap_values[0], X_test.iloc[0], matplotlib=False)
-        st.components.v1.html(shap.getjs() + force_plot_html.html(), height=300)
-
-    elif mode == "비지도학습 (정답 라벨 없음)":
-        X = df.copy()
-        if 'target' in X.columns:
-            X = X.drop(columns=['target'])
-
-        st.subheader("📊 K-Means 클러스터링")
-        n_clusters = st.slider("클러스터 수 선택", min_value=2, max_value=10, value=3)
-        model = KMeans(n_clusters=n_clusters, random_state=42)
-        labels = model.fit_predict(X)
-
-        df['Cluster'] = labels
-        st.dataframe(df.head())
-
-        st.subheader("📈 Silhouette Score")
-        silhouette = silhouette_score(X, labels)
-        st.metric("Silhouette Score", f"{silhouette:.4f}")
-
-        st.subheader("📌 클러스터 시각화 (2D)")
-        try:
-            from sklearn.decomposition import PCA
-            pca = PCA(n_components=2)
-            X_pca = pca.fit_transform(X)
-            df_viz = pd.DataFrame(X_pca, columns=["PC1", "PC2"])
-            df_viz["Cluster"] = labels
-
-            fig_cluster, ax_cluster = plt.subplots()
-            sns.scatterplot(data=df_viz, x="PC1", y="PC2", hue="Cluster", palette="tab10", ax=ax_cluster)
-            st.pyplot(fig_cluster)
-        except:
-            st.warning("시각화를 위해 PCA 변환을 시도했으나 실패했습니다.")
+        if st.button("PDF 리포트 생성"):
+            report_path = generate_pdf_report(
+                metrics={"정밀도": precision, "재현율": recall, "F1 점수": f1, "AUC": roc_auc},
+                explanations=explanations,
+                charts=[cm_tmp.name, roc_tmp.name]
+            )
+            with open(report_path, "rb") as f:
+                st.download_button("PDF 다운로드", data=f, file_name="model_report.pdf")
+    else:
+        st.warning("비지도학습 데이터로 분류되었습니다. 분석 모듈은 추후 지원 예정입니다.")
