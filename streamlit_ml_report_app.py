@@ -9,7 +9,22 @@ from fpdf import FPDF
 import tempfile
 import os
 
-st.title("🧠 Model Evaluation with Test Process Summary")
+# Generate formula image
+def generate_formula_image_fixed():
+    fig, ax = plt.subplots(figsize=(10, 2))
+    ax.axis("off")
+    formula_text = (
+        r"$\mathrm{Precision} = \frac{TP}{TP + FP} \quad "
+        r"\mathrm{Recall} = \frac{TP}{TP + FN} \quad "
+        r"F1 = 2 \cdot \frac{\mathrm{Precision} \cdot \mathrm{Recall}}{\mathrm{Precision} + \mathrm{Recall}}$"
+    )
+    ax.text(0.5, 0.5, formula_text, fontsize=16, ha="center", va="center")
+    formula_path = "formula_fixed.png"
+    plt.savefig(formula_path, bbox_inches="tight", dpi=200)
+    plt.close()
+    return formula_path
+
+st.title("🧠 Model Evaluation with Formula Explanation")
 
 uploaded_model = st.file_uploader("Upload trained model (.pkl or .joblib)", type=["pkl", "joblib"])
 uploaded_test_data = st.file_uploader("Upload test data (.csv)", type=["csv"])
@@ -71,11 +86,14 @@ def detailed_metric_table(TP, FP, FN):
         lines.append("F1 Score = undefined (division by zero) → treated as 0.0")
     return lines, precision, recall, f1
 
-def generate_pdf(metrics_lines, table_lines, process_lines, explanations, chart_paths):
+def generate_pdf(metrics_lines, table_lines, process_lines, explanations, chart_paths, formula_image):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     pdf.cell(0, 10, "Model Evaluation Report (Detailed)", ln=True)
+
+    if os.path.exists(formula_image):
+        pdf.image(formula_image, w=180)
 
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 10, "Test Process Summary:", ln=True)
@@ -173,13 +191,17 @@ if uploaded_model and uploaded_test_data:
                 roc_auc = 0.0
                 explanations.append("ROC Curve not available.")
 
+            formula_path = generate_formula_image_fixed()
+            st.image(formula_path, caption="정밀도, 재현율, F1 수식")
+
             if st.button("📄 Generate Detailed PDF Report"):
                 pdf_path = generate_pdf(
                     metrics_lines=metric_lines,
                     table_lines=table_lines,
                     process_lines=process_lines,
                     explanations=explanations,
-                    chart_paths=chart_paths
+                    chart_paths=chart_paths,
+                    formula_image=formula_path
                 )
                 with open(pdf_path, "rb") as f:
                     st.download_button("📥 Download Report", f, file_name="detailed_evaluation_report.pdf")
