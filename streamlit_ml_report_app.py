@@ -48,9 +48,9 @@ def draw_formula_image():
     fig, ax = plt.subplots(figsize=(10, 2))
     ax.axis("off")
     formula = (
-        r"$\mathrm{Precision} = rac{TP}{TP + FP} \quad "
-        r"\mathrm{Recall} = rac{TP}{TP + FN} \quad "
-        r"F1 = 2 \cdot rac{\mathrm{Precision} \cdot \mathrm{Recall}}{\mathrm{Precision} + \mathrm{Recall}}$"
+        r"$\mathrm{Precision} = \frac{TP}{TP + FP} \quad "
+        r"\mathrm{Recall} = \frac{TP}{TP + FN} \quad "
+        r"F1 = 2 \cdot \frac{\mathrm{Precision} \cdot \mathrm{Recall}}{\mathrm{Precision} + \mathrm{Recall}}$"
     )
     ax.text(0.5, 0.5, formula, fontsize=16, ha="center", va="center")
     img_path = "formula_fpdf2.png"
@@ -126,7 +126,7 @@ if uploaded_model and uploaded_test_data:
             fig, cm = plot_confusion_matrix(y_test, y_pred)
             st.pyplot(fig)
 
-            confusion_text = f"TP: {TP} (정답 1, 예측 1), FP: {FP} (정답 0, 예측 1),\nFN: {FN} (정답 1, 예측 0), TN: {TN} (정답 0, 예측 0)"
+            confusion_text = f"TP: {TP} (정답 1, 예측 1), FP: {FP} (정답 0, 예측 1), FN: {FN} (정답 1, 예측 0), TN: {TN} (정답 0, 예측 0)"
             st.info(confusion_text)
 
             try:
@@ -136,6 +136,12 @@ if uploaded_model and uploaded_test_data:
                 st.pyplot(fig_roc)
             except:
                 st.warning("ROC Curve 생성을 위해 predict_proba가 필요합니다.")
+
+            # Latex 공식 Streamlit에서도 보여주기
+            st.subheader("📐 수식 보기 (Latex)")
+            st.latex(r"\mathrm{Precision} = rac{TP}{TP + FP}")
+            st.latex(r"\mathrm{Recall} = rac{TP}{TP + FN}")
+            st.latex(r"F1 = 2 \cdot rac{\mathrm{Precision} \cdot \mathrm{Recall}}{\mathrm{Precision} + \mathrm{Recall}}")
 
             formula_img = draw_formula_image()
 
