@@ -1,100 +1,79 @@
+
 import streamlit as st
 
-# Configure the page
-st.set_page_config(page_title="AI 거버넌스 요약", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="AI 거버넌스 실시간 미리보기", layout="wide")
+st.title("🤖 AI 거버넌스 입력 정보 미리보기")
 
-# Title for the app
-st.title("AI 거버넌스 요약 생성기")
+st.subheader("1. 조직의 맥락 및 역할")
+org_context = st.text_area("✅ 조직의 외부/내부 환경 이슈를 기술해주세요:") or ""
+org_role = st.selectbox("✅ 조직의 AI 역할을 선택해주세요:", 
+                        ["개발자", "제공자", "운영자", "사용자", "복합적 역할"]) or ""
 
-# Optional description/instructions for clarity
-st.markdown("""AI 거버넌스 관련 입력 정보를 작성한 후 **요약 보기** 버튼을 누르면, 
-입력된 내용을 토대로 섹션별로 정리된 요약이 화면에 표시됩니다.
-문서 파일을 생성하거나 다운로드하지 않고 즉시 결과를 확인할 수 있습니다.""")
+st.subheader("2. 이해관계자")
+stakeholders = st.multiselect("✅ 주요 이해관계자를 선택하세요:", 
+                              ["고객", "직원", "규제기관", "사회", "협력사"])
+stakeholder_needs = st.text_area("✅ 이해관계자의 요구사항을 간략히 서술해주세요:") or ""
 
-# Input fields for AI governance context
-st.subheader("기본 정보 입력")
-org_context = st.text_area("조직 맥락 및 AI 역할", placeholder="조직의 배경과 AI의 역할을 입력하세요.")
-stakeholders = st.text_area("이해관계자 및 요구사항", placeholder="이해관계자와 그들의 필요 사항을 입력하세요.")
-data_sources = st.text_area("데이터 소스 및 유형", placeholder="사용되는 데이터 출처와 유형을 입력하세요.")
-policies_infra = st.text_area("내부 AI 정책 및 인프라", placeholder="내부 AI 관련 정책과 인프라 상황을 입력하세요.")
-roles_resp = st.text_area("역할 및 책임 (예: CTO, 기술 및 품질 팀)", placeholder="각 역할 (예: CTO, 기술팀 등)과 책임 범위를 입력하세요.")
+st.subheader("3. 데이터 정보")
+data_sources = st.text_area("✅ 데이터 출처 및 특성을 기술해주세요:") or ""
+data_type = st.radio("✅ 데이터 유형을 선택하세요:", 
+                     ["정형", "비정형", "민감정보 포함", "공공데이터", "혼합형"], index=0) or ""
 
-# Advanced optional features
-st.subheader("고급 기능 (선택 사항)")
-risk_checked = st.checkbox("위험 요소 제안")
-sensitivity_checked = st.checkbox("민감도 분류")
-dashboard_checked = st.checkbox("대시보드 요약 미리보기")
+st.subheader("4. 내부 정책 및 시스템")
+policies_infra = st.text_area("✅ 내부 AI 정책 및 인프라 정보를 입력해주세요:") or ""
 
-# Button to generate summary
-submitted = st.button("요약 보기")
+st.subheader("5. 역할과 책임")
+cto_name = st.text_input("CTO (총괄 책임자) 이름:") or ""
+tech_team = st.text_area("기술팀 역할 및 책임:") or ""
+quality_team = st.text_area("품질팀 역할 및 책임:") or ""
 
-if submitted:
-    # Compile the summary content
-    summary_lines = []
-    # Only add section if content is not empty or at least one field is filled?
-    # We'll add all sections regardless, even if empty, but we can handle empty gracefully.
-    summary_lines.append("## 조직 맥락 및 AI 역할\n" + (org_context if org_context else "입력된 내용이 없습니다."))
-    summary_lines.append("## 이해관계자 및 요구사항\n" + (stakeholders if stakeholders else "입력된 내용이 없습니다."))
-    summary_lines.append("## 데이터 소스 및 유형\n" + (data_sources if data_sources else "입력된 내용이 없습니다."))
-    summary_lines.append("## 내부 AI 정책 및 인프라\n" + (policies_infra if policies_infra else "입력된 내용이 없습니다."))
-    summary_lines.append("## 역할 및 책임\n" + (roles_resp if roles_resp else "입력된 내용이 없습니다."))
+# 고급 기능
+st.sidebar.header("🛠️ 고급 기능")
+show_risks = st.sidebar.checkbox("🔍 리스크 자동 제안")
+show_sensitivity = st.sidebar.checkbox("🔒 민감도 분류 지원")
+show_summary = st.sidebar.checkbox("📊 요약 대시보드")
 
-    # Advanced sections if their checkboxes are checked
-    if risk_checked:
-        # Generate a basic risk suggestion content
-        risk_content = "AI 활용과 관련하여 고려해야 할 잠재적 위험 요소:\n"
-        risk_points = []
-        # Provide general risk points (could be refined based on input in the future)
-        risk_points.append("- 데이터 프라이버시 및 보안: 개인 정보 및 민감한 데이터의 유출 위험을 관리해야 합니다.")
-        risk_points.append("- 편향 및 공정성: AI 모델의 의사결정에서 편향이 발생하지 않도록 주의해야 합니다.")
-        risk_points.append("- 투명성 및 설명 가능성: AI의 의사결정 과정을 설명하고 이해관계자에게 투명하게 공개해야 합니다.")
-        risk_points.append("- 규정 준수: 업계 표준 및 관련 법규(예: AI 윤리 가이드라인)에 맞게 AI 시스템을 운영해야 합니다.")
-        # Join risk points into the section content
-        risk_content += "\n".join(risk_points)
-        summary_lines.append("## 위험 요소 제안\n" + risk_content)
+# 실행 버튼
+if st.button("📋 화면에 문서 내용 보기"):
+    st.markdown("## 📄 AI 거버넌스 문서 (미리보기)")
 
-    if sensitivity_checked:
-        # Basic sensitivity classification content
-        sens_content = "데이터 소스의 민감도 분류:\n"
-        sens_points = []
-        data_text = data_sources.lower() if data_sources else ""
-        # Check for keywords to determine sensitivity
-        high_keywords = ["개인", "고객", "민감", "금융", "의료", "health", "financial", "personal", "customer", "employee"]
-        medium_keywords = ["내부", "사내", "기밀", "internal", "confidential"]
-        low_keywords = ["공개", "오픈", "open", "public"]
-        # Determine if any keywords present
-        high_flag = any(k in data_text for k in high_keywords)
-        medium_flag = any(k in data_text for k in medium_keywords)
-        low_flag = any(k in data_text for k in low_keywords)
-        if high_flag:
-            sens_points.append("- **높은 민감도:** 개인 식별 정보 또는 민감한 데이터 (예: 고객 개인정보)로 분류됩니다.")
-        if medium_flag:
-            sens_points.append("- **중간 민감도:** 내부 사용 데이터 또는 기밀 데이터로 분류됩니다.")
-        if low_flag:
-            sens_points.append("- **낮은 민감도:** 공개 데이터 또는 일반 공개 가능한 정보로 분류됩니다.")
-        if not sens_points:
-            sens_points.append("- 제공된 정보를 기반으로 민감도를 분류할 추가 단서가 없습니다.")
-        sens_content += "\n".join(sens_points)
-        summary_lines.append("## 민감도 분류\n" + sens_content)
+    st.markdown("### 1. 조직의 맥락 및 역할")
+    st.markdown(f"- 환경 이슈: {org_context}")
+    st.markdown(f"- 조직 역할: {org_role}")
 
-    if dashboard_checked:
-        # Provide a brief dashboard-friendly summary (e.g., key points from each section)
-        preview_content = "다음은 입력된 정보를 간략히 요약한 대시보드용 하이라이트입니다:\n"
-        preview_points = []
-        if org_context:
-            preview_points.append(f"- **조직/AI 맥락:** {org_context[:50]}{'...' if len(org_context) > 50 else ''}")
-        if stakeholders:
-            preview_points.append(f"- **이해관계자:** {stakeholders[:50]}{'...' if len(stakeholders) > 50 else ''}")
-        if data_sources:
-            preview_points.append(f"- **데이터:** {data_sources[:50]}{'...' if len(data_sources) > 50 else ''}")
-        if policies_infra:
-            preview_points.append(f"- **정책/인프라:** {policies_infra[:50]}{'...' if len(policies_infra) > 50 else ''}")
-        if roles_resp:
-            preview_points.append(f"- **주요 역할:** {roles_resp[:50]}{'...' if len(roles_resp) > 50 else ''}")
-        if not preview_points:
-            preview_points.append("- (요약할 내용이 없습니다)")
-        preview_content += "\n".join(preview_points)
-        summary_lines.append("## 대시보드 요약 미리보기\n" + preview_content)
+    st.markdown("### 2. 이해관계자")
+    st.markdown(f"- 이해관계자: {', '.join(stakeholders) if stakeholders else '없음'}")
+    st.markdown(f"- 요구사항: {stakeholder_needs}")
 
-    # Display the compiled summary in markdown
-    st.markdown("\n\n".join(summary_lines))
+    st.markdown("### 3. 데이터 정보")
+    st.markdown(f"- 출처: {data_sources}")
+    st.markdown(f"- 유형: {data_type}")
+
+    st.markdown("### 4. 정책 및 인프라")
+    st.markdown(f"- 정책 및 인프라: {policies_infra}")
+
+    st.markdown("### 5. 역할과 책임")
+    st.markdown(f"- CTO: {cto_name}")
+    st.markdown(f"- 기술팀: {tech_team}")
+    st.markdown(f"- 품질팀: {quality_team}")
+
+    if show_risks:
+        st.markdown("### 🔍 제안된 리스크")
+        st.markdown("- 데이터 편향 및 대표성 부족
+- 자동화 오류 또는 설명 불가능한 결과
+- 사용자 오용 가능성
+- 법/규제 위반 가능성")
+
+    if show_sensitivity:
+        st.markdown("### 🔒 예상 민감도 결과")
+        if "민감정보" in data_type:
+            st.error("❗ 예상 민감도: 높음")
+        else:
+            st.success("✅ 예상 민감도: 낮음 또는 보통")
+
+    if show_summary:
+        st.markdown("### 📊 요약")
+        st.markdown(f"- 조직 역할: {org_role}")
+        st.markdown(f"- 이해관계자 수: {len(stakeholders)}")
+        st.markdown(f"- 데이터 유형: {data_type}")
+        st.markdown(f"- 리스크 제안: {'활성화됨' if show_risks else '비활성화'}")
