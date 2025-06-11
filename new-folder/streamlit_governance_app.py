@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from docx import Document
-import os
+from io import BytesIO
 
 st.set_page_config(page_title="AI 거버넌스 자동 생성기", layout="wide")
 st.title("🤖 AI 거버넌스 문서 자동 생성기 (ISO/IEC 42001 기반)")
@@ -48,7 +48,7 @@ if risk_suggestion:
     st.markdown("- 사용자 오용 또는 오해 가능성")
     st.markdown("- 법/규정 위반 가능성")
 
-# --- 민감도 분류 지원 (수정됨) ---
+# --- 민감도 분류 지원 ---
 if sensitivity_check:
     st.subheader("🔒 예상 민감도 결과")
     if data_type and "민감정보" in data_type:
@@ -81,8 +81,8 @@ def generate_governance_paragraphs(context, role, stakeholders, needs, data_sour
     p.append(f"CTO {cto_name}는 정책 및 시스템의 총괄 책임을 지며, 기술팀은 '{tech_team_role}', 품질팀은 '{quality_team_role}' 역할을 수행합니다.")
     return "\n\n".join(p)
 
-# --- 문서 생성 함수 ---
-def generate_docx():
+# --- 문서 생성 함수 (메모리 기반) ---
+def generate_docx_in_memory():
     doc = Document()
     doc.add_heading("AI 거버넌스 문서 (ISO/IEC 42001 기반)", 0)
 
@@ -91,26 +91,19 @@ def generate_docx():
                                                        infrastructure, cto_name, tech_team_role, quality_team_role)
     doc.add_paragraph(summary_paragraph)
 
-    now_str = datetime.now().strftime("%Y%m%d_%H%M")
-    filename = f"AI_Governance_Report_{now_str}.docx"
-    filepath = os.path.join("./", filename)
-    doc.save(filepath)
-    return filepath, filename
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
 
 # --- 문서 생성 버튼 ---
 st.markdown("---")
 if st.button("📄 문서 생성하기"):
-    file_path, file_name = generate_docx()
-    st.success(f"문서가 성공적으로 생성되었습니다! ({datetime.now().strftime('%Y-%m-%d %H:%M')})")
-    try:
-        with open(file_path, "rb") as f:
-            file_bytes = f.read()
-            st.download_button(
-                label="📥 문서 다운로드 (Word)",
-                data=file_bytes,
-                file_name=file_name,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
-    except Exception as e:
-        st.error(f"다운로드 버튼 생성 오류: {e}")
-    # 파일 삭제는 생략하거나 사용자가 직접 관리
+    docx_buffer = generate_docx_in_memory()
+    filename = f"AI_Governance_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
+    st.download_button(
+        label="📥 문서 다운로드 (Word)",
+        data=docx_buffer,
+        file_name=filename,
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
