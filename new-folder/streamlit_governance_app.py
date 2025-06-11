@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -102,5 +103,10 @@ if st.button("📄 문서 생성하기"):
     file_path, file_name = generate_docx()
     st.success(f"문서가 성공적으로 생성되었습니다! ({datetime.now().strftime('%Y-%m-%d %H:%M')})")
     with open(file_path, "rb") as f:
-        st.download_button("📥 문서 다운로드 (Word)", f, file_name=file_name)
-    os.remove(file_path)  # 다운로드 후 서버에 임시 파일 삭제
+        st.download_button(
+            label="📥 문서 다운로드 (Word)",
+            data=f,
+            file_name=file_name,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+    # os.remove(file_path)  # 다운로드 이후 삭제 원할 시 주석 해제
