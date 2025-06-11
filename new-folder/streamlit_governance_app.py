@@ -65,31 +65,31 @@ if dashboard_preview:
     })
     st.table(summary_df)
 
+# --- 규칙 기반 문장 생성 함수 ---
+def generate_governance_paragraphs(context, role, stakeholders, needs, data_source, data_type,
+                                   policy_input, infrastructure, cto_name, tech_team_role, quality_team_role):
+    p = []
+    p.append(f"당사는 {context} 등의 환경 문제 해결을 위해 AI 기반 품질컨설팅 에이전트를 운영합니다.")
+    p.append(f"조직은 '{role}'의 역할을 중심으로 AI 시스템을 기획 및 실행하고 있습니다.")
+    if stakeholders:
+        p.append(f"주요 이해관계자는 {', '.join(stakeholders)}이며, 이들은 '{needs}'를 요구합니다.")
+    else:
+        p.append(f"이해관계자의 요구사항은 다음과 같습니다: {needs}")
+    p.append(f"데이터는 '{data_source}'에서 수집된 '{data_type}' 유형의 데이터를 기반으로 분석됩니다.")
+    p.append(f"현재 적용 중인 내부 정책은 다음과 같습니다: {policy_input}")
+    p.append(f"AI 인프라는 다음 요소로 구성됩니다: {infrastructure}")
+    p.append(f"CTO {cto_name}는 정책 및 시스템의 총괄 책임을 지며, 기술팀은 '{tech_team_role}', 품질팀은 '{quality_team_role}' 역할을 수행합니다.")
+    return "\n\n".join(p)
+
 # --- 문서 생성 함수 ---
 def generate_docx():
     doc = Document()
     doc.add_heading("AI 거버넌스 문서 (ISO/IEC 42001 기반)", 0)
 
-    doc.add_heading("1. 조직의 맥락 및 역할", level=1)
-    doc.add_paragraph(f"- 외부/내부 환경: {context}")
-    doc.add_paragraph(f"- 조직 역할: {role}")
-
-    doc.add_heading("2. 이해관계자", level=1)
-    doc.add_paragraph(f"- 이해관계자: {', '.join(stakeholders)}")
-    doc.add_paragraph(f"- 요구사항: {needs}")
-
-    doc.add_heading("3. 데이터 정보", level=1)
-    doc.add_paragraph(f"- 데이터 출처: {data_source}")
-    doc.add_paragraph(f"- 데이터 유형: {data_type}")
-
-    doc.add_heading("4. 정책 및 인프라", level=1)
-    doc.add_paragraph(f"- 내부 정책: {policy_input}")
-    doc.add_paragraph(f"- 인프라: {infrastructure}")
-
-    doc.add_heading("5. 책임자 및 역할", level=1)
-    doc.add_paragraph(f"- CTO: {cto_name}")
-    doc.add_paragraph(f"- 기술팀: {tech_team_role}")
-    doc.add_paragraph(f"- 품질팀: {quality_team_role}")
+    summary_paragraph = generate_governance_paragraphs(context, role, stakeholders, needs,
+                                                       data_source, data_type, policy_input,
+                                                       infrastructure, cto_name, tech_team_role, quality_team_role)
+    doc.add_paragraph(summary_paragraph)
 
     now_str = datetime.now().strftime("%Y%m%d_%H%M")
     filename = f"AI_Governance_Report_{now_str}.docx"
@@ -109,4 +109,3 @@ if st.button("📄 문서 생성하기"):
             file_name=file_name,
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
-    # os.remove(file_path)  # 다운로드 이후 삭제 원할 시 주석 해제
