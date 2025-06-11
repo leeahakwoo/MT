@@ -45,10 +45,10 @@ if risk_suggestion:
     st.markdown("- 사용자 오용 또는 오해 가능성")
     st.markdown("- 법/규정 위반 가능성")
 
-# --- 민감도 분류 지원 ---
+# --- 민감도 분류 지원 (수정됨) ---
 if sensitivity_check:
     st.subheader("🔒 예상 민감도 결과")
-    if "민감정보" in data_type:
+    if data_type and "민감정보" in data_type:
         st.error("❗ 예상 민감도: 높음")
     else:
         st.success("✅ 예상 민감도: 보통 또는 낮음")
