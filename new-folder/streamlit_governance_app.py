@@ -102,10 +102,15 @@ st.markdown("---")
 if st.button("📄 문서 생성하기"):
     file_path, file_name = generate_docx()
     st.success(f"문서가 성공적으로 생성되었습니다! ({datetime.now().strftime('%Y-%m-%d %H:%M')})")
-    with open(file_path, "rb") as f:
-        st.download_button(
-            label="📥 문서 다운로드 (Word)",
-            data=f,
-            file_name=file_name,
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+    try:
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+            st.download_button(
+                label="📥 문서 다운로드 (Word)",
+                data=file_bytes,
+                file_name=file_name,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+    except Exception as e:
+        st.error(f"다운로드 버튼 생성 오류: {e}")
+    # 파일 삭제는 생략하거나 사용자가 직접 관리
