@@ -5,7 +5,7 @@ from io import BytesIO
 from datetime import datetime
 
 st.set_page_config(page_title="AI 거버넌스 PDF 생성기", layout="wide")
-st.title("📄 AI 거버넌스 보고서 생성기 (PDF 포맷)")
+st.title("📄 AI 거버넌스 보고서 생성기 (PDF 포맷 - 안정화 버전)")
 
 # --- 입력값 ---
 st.subheader("1. 조직의 맥락 및 역할")
@@ -60,10 +60,8 @@ def generate_pdf():
     pdf.set_font("Arial", size=12)
     for line in content.strip().split("\n"):
         pdf.multi_cell(0, 10, line)
-    buffer = BytesIO()
-    pdf.output(buffer)
-    buffer.seek(0)
-    return buffer
+    pdf_output = pdf.output(dest='S').encode('latin1')  # byte로 인코딩
+    return BytesIO(pdf_output)
 
 st.markdown("---")
 if st.button("📥 PDF 문서 생성 및 다운로드"):
