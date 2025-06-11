@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from docx import Document
+import os
 
 st.set_page_config(page_title="AI 거버넌스 자동 생성기", layout="wide")
 st.title("🤖 AI 거버넌스 문서 자동 생성기 (ISO/IEC 42001 기반)")
@@ -62,8 +64,43 @@ if dashboard_preview:
     })
     st.table(summary_df)
 
+# --- 문서 생성 함수 ---
+def generate_docx():
+    doc = Document()
+    doc.add_heading("AI 거버넌스 문서 (ISO/IEC 42001 기반)", 0)
+
+    doc.add_heading("1. 조직의 맥락 및 역할", level=1)
+    doc.add_paragraph(f"- 외부/내부 환경: {context}")
+    doc.add_paragraph(f"- 조직 역할: {role}")
+
+    doc.add_heading("2. 이해관계자", level=1)
+    doc.add_paragraph(f"- 이해관계자: {', '.join(stakeholders)}")
+    doc.add_paragraph(f"- 요구사항: {needs}")
+
+    doc.add_heading("3. 데이터 정보", level=1)
+    doc.add_paragraph(f"- 데이터 출처: {data_source}")
+    doc.add_paragraph(f"- 데이터 유형: {data_type}")
+
+    doc.add_heading("4. 정책 및 인프라", level=1)
+    doc.add_paragraph(f"- 내부 정책: {policy_input}")
+    doc.add_paragraph(f"- 인프라: {infrastructure}")
+
+    doc.add_heading("5. 책임자 및 역할", level=1)
+    doc.add_paragraph(f"- CTO: {cto_name}")
+    doc.add_paragraph(f"- 기술팀: {tech_team_role}")
+    doc.add_paragraph(f"- 품질팀: {quality_team_role}")
+
+    now_str = datetime.now().strftime("%Y%m%d_%H%M")
+    filename = f"AI_Governance_Report_{now_str}.docx"
+    filepath = os.path.join("./", filename)
+    doc.save(filepath)
+    return filepath, filename
+
 # --- 문서 생성 버튼 ---
 st.markdown("---")
 if st.button("📄 문서 생성하기"):
+    file_path, file_name = generate_docx()
     st.success(f"문서가 성공적으로 생성되었습니다! ({datetime.now().strftime('%Y-%m-%d %H:%M')})")
-    st.info("*이 기능은 데모이며, 실제 문서는 docx/pdf 생성 기능과 연동됩니다.*")
+    with open(file_path, "rb") as f:
+        st.download_button("📥 문서 다운로드 (Word)", f, file_name=file_name)
+    os.remove(file_path)  # 다운로드 후 서버에 임시 파일 삭제
