@@ -1,18 +1,11 @@
 
 import streamlit as st
-import pandas as pd
-from datetime import datetime
-from docx import Document
+from fpdf import FPDF
 from io import BytesIO
+from datetime import datetime
 
-st.set_page_config(page_title="AI 거버넌스 자동 생성기", layout="wide")
-st.title("🧪 [디버깅용] AI 거버넌스 문서 생성기")
-
-# --- Sidebar 고급 기능 ---
-st.sidebar.header("🛠️ 고급 기능")
-risk_suggestion = st.sidebar.checkbox("🔍 리스크 자동 제안")
-sensitivity_check = st.sidebar.checkbox("🔒 민감도 분류 지원")
-dashboard_preview = st.sidebar.checkbox("📊 대시보드 미리보기")
+st.set_page_config(page_title="AI 거버넌스 PDF 생성기", layout="wide")
+st.title("📄 AI 거버넌스 보고서 생성기 (PDF 포맷)")
 
 # --- 입력값 ---
 st.subheader("1. 조직의 맥락 및 역할")
@@ -36,63 +29,44 @@ cto_name = st.text_input("✅ CTO 이름")
 tech_team_role = st.text_area("✅ 기술팀 역할")
 quality_team_role = st.text_area("✅ 품질팀 역할")
 
-# --- 디버깅 출력 ---
-st.subheader("📋 디버그 출력 (입력값)")
-st.json({
-    "context": context,
-    "role": role,
-    "stakeholders": stakeholders,
-    "needs": needs,
-    "data_source": data_source,
-    "data_type": data_type,
-    "policy_input": policy_input,
-    "infrastructure": infrastructure,
-    "cto_name": cto_name,
-    "tech_team_role": tech_team_role,
-    "quality_team_role": quality_team_role
-})
+# --- 보고서 PDF 생성 ---
+def generate_pdf():
+    content = f"""
+[조직의 맥락 및 역할]
+- 환경 이슈: {context}
+- 조직 역할: {role}
 
-# --- 문서 문장 생성 ---
-def generate_text():
-    try:
-        parts = []
-        parts.append(f"[조직 환경] {context}")
-        parts.append(f"[조직 역할] {role}")
-        parts.append(f"[이해관계자] {', '.join(stakeholders)} / 요구: {needs}")
-        parts.append(f"[데이터] 출처: {data_source} / 유형: {data_type}")
-        parts.append(f"[정책] {policy_input}")
-        parts.append(f"[인프라] {infrastructure}")
-        parts.append(f"[책임자] CTO: {cto_name}, 기술팀: {tech_team_role}, 품질팀: {quality_team_role}")
-        return "\n\n".join(parts)
-    except Exception as e:
-        return f"[문장 생성 오류] {str(e)}"
+[이해관계자]
+- 대상: {', '.join(stakeholders)}
+- 요구사항: {needs}
 
-# --- 문서 생성 함수 ---
-def generate_docx_buffer():
-    doc = Document()
-    doc.add_paragraph("📌 문서 생성 테스트 시작")  # 초기 문장
-    content = generate_text()
-    doc.add_paragraph(content)
+[데이터 정보]
+- 출처: {data_source}
+- 유형: {data_type}
 
+[정책 및 시스템]
+- 내부 정책: {policy_input}
+- 인프라: {infrastructure}
+
+[책임자 및 역할]
+- CTO: {cto_name}
+- 기술팀: {tech_team_role}
+- 품질팀: {quality_team_role}
+"""
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=12)
+    for line in content.strip().split("\n"):
+        pdf.multi_cell(0, 10, line)
     buffer = BytesIO()
-    try:
-        doc.save(buffer)
-        buffer.seek(0)
-        return buffer, None
-    except Exception as e:
-        return None, str(e)
+    pdf.output(buffer)
+    buffer.seek(0)
+    return buffer
 
-# --- 생성 버튼 ---
 st.markdown("---")
-if st.button("📄 문서 생성하기"):
-    buffer, error = generate_docx_buffer()
-    if error:
-        st.error(f"문서 저장 중 오류 발생: {error}")
-    else:
-        filename = f"AI_Governance_Debug_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
-        st.download_button(
-            label="📥 다운로드 (Word)",
-            data=buffer,
-            file_name=filename,
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+if st.button("📥 PDF 문서 생성 및 다운로드"):
+    pdf_buffer = generate_pdf()
+    filename = f"AI_Governance_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+    st.download_button("📄 다운로드 (PDF)", data=pdf_buffer, file_name=filename, mime="application/pdf")
